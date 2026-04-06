@@ -496,6 +496,8 @@ const shopColors: Record<string, string> = {
 
 const ALL_SHOPS = ['Autodoc', 'Exist', 'Emex'];
 
+const VIN_REGEX = /^[A-HJ-NPR-Z0-9]{17}$/i;
+
 export default function CatalogPage() {
   const [selectedMake, setSelectedMake] = useState('');
   const [selectedCat, setSelectedCat] = useState('');
@@ -504,6 +506,16 @@ export default function CatalogPage() {
   const [expandedShops, setExpandedShops] = useState<Set<string>>(new Set());
   const [compareSet, setCompareSet] = useState<Set<string>>(new Set());
   const [showCompare, setShowCompare] = useState(false);
+  const [vin, setVin] = useState('');
+  const [vinError, setVinError] = useState('');
+
+  const handleVinSearch = () => {
+    const v = vin.trim().toUpperCase();
+    if (!v) { setVinError('Введите VIN-номер'); return; }
+    if (!VIN_REGEX.test(v)) { setVinError('VIN должен содержать ровно 17 символов (буквы A–Z без I/O/Q и цифры)'); return; }
+    setVinError('');
+    window.open(`https://www.autodoc.ru/search/vin/${v}`, '_blank', 'noopener,noreferrer');
+  };
 
   const filtered = allParts.filter((p) => {
     if (selectedMake && p.brand !== selectedMake) return false;
@@ -567,6 +579,56 @@ export default function CatalogPage() {
             Сравнить {compareSet.size} {compareSet.size === 1 ? 'товар' : compareSet.size < 5 ? 'товара' : 'товаров'}
           </button>
         )}
+      </div>
+
+      {/* VIN Search */}
+      <div className="bg-card border border-border rounded-xl p-4 mb-6">
+        <div className="flex items-start gap-3">
+          <div className="w-9 h-9 rounded-lg bg-primary/10 flex items-center justify-center flex-shrink-0 mt-0.5">
+            <Icon name="ScanBarcode" size={18} className="text-primary" />
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="font-semibold text-foreground text-sm mb-0.5">Поиск запчастей по VIN</p>
+            <p className="text-xs text-muted-foreground mb-3">Введите 17-значный VIN вашего автомобиля — откроется Autodoc с полным каталогом подходящих запчастей</p>
+            <div className="flex gap-2">
+              <div className="relative flex-1">
+                <input
+                  type="text"
+                  value={vin}
+                  onChange={(e) => { setVin(e.target.value.toUpperCase()); setVinError(''); }}
+                  onKeyDown={(e) => e.key === 'Enter' && handleVinSearch()}
+                  placeholder="Например: WBA3A5C50DF358234"
+                  maxLength={17}
+                  className={`w-full bg-secondary border rounded-lg px-3 py-2 text-sm font-mono text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 transition-colors ${
+                    vinError ? 'border-red-500/60 focus:border-red-500' : 'border-border focus:border-primary'
+                  }`}
+                />
+                <span className={`absolute right-3 top-1/2 -translate-y-1/2 text-xs font-mono ${vin.length === 17 ? 'text-green-400' : 'text-muted-foreground'}`}>
+                  {vin.length}/17
+                </span>
+              </div>
+              <button
+                onClick={handleVinSearch}
+                className="flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground rounded-lg text-sm font-semibold hover:bg-primary/90 transition-all flex-shrink-0"
+              >
+                <Icon name="Search" size={15} />
+                Найти
+              </button>
+            </div>
+            {vinError && (
+              <p className="text-xs text-red-400 mt-2 flex items-center gap-1">
+                <Icon name="AlertCircle" size={12} />
+                {vinError}
+              </p>
+            )}
+            {vin.length === 17 && !vinError && VIN_REGEX.test(vin) && (
+              <p className="text-xs text-green-400 mt-2 flex items-center gap-1">
+                <Icon name="CheckCircle" size={12} />
+                VIN корректный — нажмите «Найти»
+              </p>
+            )}
+          </div>
+        </div>
       </div>
 
       <div className="flex gap-5">
