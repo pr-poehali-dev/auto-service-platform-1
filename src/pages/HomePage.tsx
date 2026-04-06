@@ -1,8 +1,26 @@
 import { useState } from 'react';
 import Icon from '@/components/ui/icon';
 
+const VIN_API_URL = 'https://functions.poehali.dev/d68df87f-00cc-4e9a-9bc4-3f50cc2ea69c';
+
 interface HomePageProps {
   setActivePage: (page: string) => void;
+}
+
+interface VinResult {
+  vin: string;
+  make: string;
+  model: string;
+  year: string;
+  body_class: string;
+  series: string;
+  trim: string;
+  engine_cylinders: string;
+  displacement: string;
+  fuel_type: string;
+  drive_type: string;
+  transmission: string;
+  plant_country: string;
 }
 
 const quickActions = [
@@ -19,22 +37,62 @@ const popularParts = [
   { name: 'Свечи зажигания', art: 'NGK BKR6EK', price: '3 200 ₽', brand: 'Honda', inStock: true },
 ];
 
+const specLabels: { key: keyof VinResult; label: string }[] = [
+  { key: 'year', label: 'Год' },
+  { key: 'body_class', label: 'Кузов' },
+  { key: 'displacement', label: 'Объём (л)' },
+  { key: 'engine_cylinders', label: 'Цилиндры' },
+  { key: 'fuel_type', label: 'Топливо' },
+  { key: 'drive_type', label: 'Привод' },
+  { key: 'transmission', label: 'КПП' },
+  { key: 'plant_country', label: 'Страна сборки' },
+];
+
 export default function HomePage({ setActivePage }: HomePageProps) {
   const [vinInput, setVinInput] = useState('');
-  const [scanning, setScanning] = useState(false);
-  const [vinResult, setVinResult] = useState<null | { make: string; model: string; year: string }>(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+  const [vinResult, setVinResult] = useState<VinResult | null>(null);
 
-  const handleVinSearch = () => {
-    if (vinInput.length < 6) return;
-    setVinResult({ make: 'Toyota', model: 'Camry', year: '2019' });
+  const handleVinSearch = async () => {
+    const vin = vinInput.trim().toUpperCase();
+    if (vin.length !== 17) {
+      setError('VIN-код должен содержать ровно 17 символов');
+      return;
+    }
+    setLoading(true);
+    setError('');
+    setVinResult(null);
+    try {
+      const resp = await fetch(`${VIN_API_URL}?vin=${encodeURIComponent(vin)}`);
+      const data = await resp.json();
+      if (!resp.ok || !data.success) {
+        setError(data.error || 'Не удалось определить автомобиль');
+      } else {
+        setVinResult(data.car);
+      }
+    } catch {
+      setError('Ошибка соединения. Попробуйте ещё раз.');
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const handleScan = () => {
-    setScanning(true);
-    setTimeout(() => {
-      setScanning(false);
-      setVinInput('1HGBH41JXMN109186');
-    }, 1800);
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter') handleVinSearch();
+  };
+
+  const handlePaste = (e: React.ClipboardEvent) => {
+    const text = e.clipboardData.getData('text').trim().toUpperCase().replace(/\s/g, '');
+    if (text.length === 17) {
+      e.preventDefault();
+      setVinInput(text);
+      setError('');
+    }
+  };
+
+  const addToGarage = () => {
+    setActivePage('garage');
   };
 
   return (
@@ -45,7 +103,7 @@ export default function HomePage({ setActivePage }: HomePageProps) {
           Найдём нужную<br />
           <span className="text-primary">деталь за минуту</span>
         </h1>
-        <p className="text-muted-foreground mb-6">Введите VIN-код — и мы подберём все совместимые запчасти</p>
+        <p className="text-muted-foreground mb-6">Введите VIN-код — определим автомобиль и подберём совместимые запчасти</p>
 
         <div className="bg-card border border-border rounded-xl p-5">
           <label className="text-xs uppercase tracking-widest text-muted-foreground font-display mb-3 block">
@@ -56,46 +114,99 @@ export default function HomePage({ setActivePage }: HomePageProps) {
               <input
                 type="text"
                 value={vinInput}
-                onChange={(e) => setVinInput(e.target.value.toUpperCase())}
+                onChange={(e) => {
+                  setVinInput(e.target.value.toUpperCase().replace(/[^A-HJ-NPR-Z0-9]/g, ''));
+                  setError('');
+                  setVinResult(null);
+                }}
+                onKeyDown={handleKeyDown}
+                onPaste={handlePaste}
                 placeholder="Например: 1HGBH41JXMN109186"
-                className="w-full bg-secondary border border-border rounded-lg px-4 py-3 text-sm font-mono tracking-widest text-foreground placeholder:text-muted-foreground placeholder:tracking-normal placeholder:font-sans focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition-all"
+                className={`w-full bg-secondary border rounded-lg px-4 py-3 text-sm font-mono tracking-widest text-foreground placeholder:text-muted-foreground placeholder:tracking-normal placeholder:font-sans focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all ${
+                  error ? 'border-destructive/60' : 'border-border focus:border-primary'
+                }`}
                 maxLength={17}
               />
               {vinInput && (
-                <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">
+                <span className={`absolute right-3 top-1/2 -translate-y-1/2 text-xs font-mono ${vinInput.length === 17 ? 'text-green-400' : 'text-muted-foreground'}`}>
                   {vinInput.length}/17
                 </span>
               )}
             </div>
             <button
-              onClick={handleScan}
-              className={`px-4 py-3 rounded-lg border border-border bg-secondary hover:bg-muted hover:border-primary transition-all flex items-center gap-2 text-sm ${scanning ? 'text-primary' : 'text-muted-foreground hover:text-foreground'}`}
-            >
-              <Icon name="Camera" size={16} className={scanning ? 'animate-pulse' : ''} />
-              <span className="hidden sm:block">{scanning ? 'Сканирую...' : 'Сканировать'}</span>
-            </button>
-            <button
               onClick={handleVinSearch}
-              className="px-6 py-3 bg-primary text-primary-foreground rounded-lg font-semibold text-sm hover:bg-primary/90 transition-all flex items-center gap-2"
+              disabled={loading || vinInput.length !== 17}
+              className="px-6 py-3 bg-primary text-primary-foreground rounded-lg font-semibold text-sm hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed transition-all flex items-center gap-2 min-w-[100px] justify-center"
             >
-              <Icon name="Search" size={16} />
-              Найти
+              {loading ? (
+                <>
+                  <Icon name="Loader" size={16} className="animate-spin" />
+                  Ищу...
+                </>
+              ) : (
+                <>
+                  <Icon name="Search" size={16} />
+                  Найти
+                </>
+              )}
             </button>
           </div>
 
+          {error && (
+            <div className="mt-3 flex items-center gap-2 text-destructive text-sm animate-fade-in">
+              <Icon name="AlertCircle" size={14} />
+              {error}
+            </div>
+          )}
+
           {vinResult && (
-            <div className="mt-4 flex items-center gap-3 bg-green-500/10 border border-green-500/30 rounded-lg px-4 py-3 animate-fade-in">
-              <Icon name="CheckCircle" size={18} className="text-green-400 flex-shrink-0" />
-              <div>
-                <p className="text-sm font-semibold text-foreground">{vinResult.make} {vinResult.model} {vinResult.year}</p>
-                <p className="text-xs text-muted-foreground">Автомобиль найден — показываем совместимые запчасти</p>
+            <div className="mt-4 animate-fade-in">
+              {/* Car name */}
+              <div className="flex items-start justify-between gap-4 bg-green-500/10 border border-green-500/30 rounded-xl px-5 py-4">
+                <div className="flex items-start gap-3">
+                  <div className="w-10 h-10 bg-green-500/20 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
+                    <Icon name="CheckCircle" size={20} className="text-green-400" />
+                  </div>
+                  <div>
+                    <p className="font-display font-bold text-foreground text-xl tracking-wide">
+                      {vinResult.make} {vinResult.model}
+                      {vinResult.series ? ` ${vinResult.series}` : ''}
+                      {vinResult.trim ? ` · ${vinResult.trim}` : ''}
+                    </p>
+                    <p className="text-xs text-muted-foreground mt-0.5 font-mono">{vinResult.vin}</p>
+                  </div>
+                </div>
+                <div className="flex gap-2 flex-shrink-0">
+                  <button
+                    onClick={addToGarage}
+                    className="flex items-center gap-1.5 text-xs px-3 py-1.5 bg-card border border-border rounded-lg text-muted-foreground hover:text-foreground hover:border-primary/40 transition-all"
+                  >
+                    <Icon name="Car" size={13} />
+                    В гараж
+                  </button>
+                  <button
+                    onClick={() => setActivePage('catalog')}
+                    className="flex items-center gap-1.5 text-xs px-3 py-1.5 bg-primary text-primary-foreground rounded-lg font-medium hover:bg-primary/90 transition-all"
+                  >
+                    <Icon name="Package" size={13} />
+                    Запчасти
+                  </button>
+                </div>
               </div>
-              <button
-                onClick={() => setActivePage('catalog')}
-                className="ml-auto text-xs text-primary hover:underline flex items-center gap-1"
-              >
-                Перейти в каталог <Icon name="ArrowRight" size={12} />
-              </button>
+
+              {/* Specs grid */}
+              <div className="mt-3 grid grid-cols-2 sm:grid-cols-4 gap-2">
+                {specLabels.map(({ key, label }) => {
+                  const val = vinResult[key];
+                  if (!val) return null;
+                  return (
+                    <div key={key} className="bg-secondary rounded-lg px-3 py-2">
+                      <p className="text-[10px] uppercase tracking-wider text-muted-foreground">{label}</p>
+                      <p className="text-sm font-medium text-foreground mt-0.5 truncate">{val}</p>
+                    </div>
+                  );
+                })}
+              </div>
             </div>
           )}
         </div>

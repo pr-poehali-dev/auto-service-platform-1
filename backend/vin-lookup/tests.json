@@ -1,0 +1,36 @@
+{
+  "tests": [
+    {
+      "name": "Valid VIN lookup",
+      "method": "GET",
+      "path": "/?vin=1HGBH41JXMN109186",
+      "expectedStatus": 200,
+      "expectedBody": { "success": true },
+      "bodyMatcher": "partial"
+    },
+    {
+      "name": "Missing VIN",
+      "method": "GET",
+      "path": "/",
+      "expectedStatus": 400,
+      "expectedBody": { "error": "Введите VIN-код" },
+      "bodyMatcher": "partial"
+    },
+    {
+      "name": "Short VIN",
+      "method": "GET",
+      "path": "/?vin=ABC123",
+      "expectedStatus": 400,
+      "expectedBody": {},
+      "bodyMatcher": "partial"
+    },
+    {
+      "name": "CORS preflight",
+      "method": "OPTIONS",
+      "path": "/",
+      "expectedStatus": 200,
+      "expectedBody": {},
+      "bodyMatcher": "partial"
+    }
+  ]
+}
