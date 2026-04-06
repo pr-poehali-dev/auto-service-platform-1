@@ -5,6 +5,7 @@ const VIN_API_URL = 'https://functions.poehali.dev/d68df87f-00cc-4e9a-9bc4-3f50c
 
 interface HomePageProps {
   setActivePage: (page: string) => void;
+  addToGarage: (car: { make: string; model: string; year: number; vin: string }) => void;
 }
 
 interface VinResult {
@@ -48,7 +49,7 @@ const specLabels: { key: keyof VinResult; label: string }[] = [
   { key: 'plant_country', label: 'Страна сборки' },
 ];
 
-export default function HomePage({ setActivePage }: HomePageProps) {
+export default function HomePage({ setActivePage, addToGarage }: HomePageProps) {
   const [vinInput, setVinInput] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -91,8 +92,14 @@ export default function HomePage({ setActivePage }: HomePageProps) {
     }
   };
 
-  const addToGarage = () => {
-    setActivePage('garage');
+  const handleAddToGarage = () => {
+    if (!vinResult) return;
+    addToGarage({
+      make: vinResult.make,
+      model: vinResult.model,
+      year: parseInt(vinResult.year) || 0,
+      vin: vinResult.vin,
+    });
   };
 
   return (
@@ -178,7 +185,7 @@ export default function HomePage({ setActivePage }: HomePageProps) {
                 </div>
                 <div className="flex gap-2 flex-shrink-0">
                   <button
-                    onClick={addToGarage}
+                    onClick={handleAddToGarage}
                     className="flex items-center gap-1.5 text-xs px-3 py-1.5 bg-card border border-border rounded-lg text-muted-foreground hover:text-foreground hover:border-primary/40 transition-all"
                   >
                     <Icon name="Car" size={13} />
