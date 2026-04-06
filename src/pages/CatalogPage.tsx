@@ -494,12 +494,16 @@ const shopColors: Record<string, string> = {
   Emex: 'bg-orange-500/15 text-orange-400 hover:bg-orange-500/30 border-orange-500/30',
 };
 
+const ALL_SHOPS = ['Autodoc', 'Exist', 'Emex'];
+
 export default function CatalogPage() {
   const [selectedMake, setSelectedMake] = useState('');
   const [selectedCat, setSelectedCat] = useState('');
   const [search, setSearch] = useState('');
   const [cartAdded, setCartAdded] = useState<Set<string>>(new Set());
   const [expandedShops, setExpandedShops] = useState<Set<string>>(new Set());
+  const [compareSet, setCompareSet] = useState<Set<string>>(new Set());
+  const [showCompare, setShowCompare] = useState(false);
 
   const filtered = allParts.filter((p) => {
     if (selectedMake && p.brand !== selectedMake) return false;
@@ -509,13 +513,41 @@ export default function CatalogPage() {
   });
 
   const addToCart = (art: string) => setCartAdded((prev) => new Set([...prev, art]));
+
   const toggleShops = (art: string) => setExpandedShops((prev) => {
     const next = new Set(prev);
     if (next.has(art)) { next.delete(art); } else { next.add(art); }
     return next;
   });
 
+  const toggleCompare = (art: string) => {
+    setCompareSet((prev) => {
+      const next = new Set(prev);
+      if (next.has(art)) {
+        next.delete(art);
+      } else if (next.size < 4) {
+        next.add(art);
+      }
+      return next;
+    });
+  };
+
   const minShopPrice = (part: Part) => Math.min(...part.shops.map((s) => s.price ?? part.price));
+
+  const compareParts = allParts.filter((p) => compareSet.has(p.art));
+
+  // best price per part per shop
+  const getBestShopForPart = (part: Part): string => {
+    let best = '';
+    let bestPrice = Infinity;
+    part.shops.forEach((s) => {
+      if ((s.price ?? part.price) < bestPrice) {
+        bestPrice = s.price ?? part.price;
+        best = s.name;
+      }
+    });
+    return best;
+  };
 
   return (
     <div className="p-6 animate-fade-in max-w-5xl">
@@ -526,6 +558,15 @@ export default function CatalogPage() {
           </h1>
           <p className="text-muted-foreground text-sm mt-1">{allParts.length} позиций в каталоге</p>
         </div>
+        {compareSet.size > 0 && (
+          <button
+            onClick={() => setShowCompare(true)}
+            className="flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground rounded-lg text-sm font-semibold hover:bg-primary/90 transition-all animate-fade-in"
+          >
+            <Icon name="BarChart2" size={16} />
+            Сравнить {compareSet.size} {compareSet.size === 1 ? 'товар' : compareSet.size < 5 ? 'товара' : 'товаров'}
+          </button>
+        )}
       </div>
 
       <div className="flex gap-5">
@@ -577,31 +618,63 @@ export default function CatalogPage() {
 
         {/* Parts list */}
         <div className="flex-1 min-w-0">
-          <div className="relative mb-4">
-            <Icon name="Search" size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
-            <input
-              type="text"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder="Поиск по названию, артикулу или производителю..."
-              className="w-full bg-secondary border border-border rounded-lg pl-8 pr-4 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary"
-            />
+          <div className="flex gap-2 mb-4">
+            <div className="relative flex-1">
+              <Icon name="Search" size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+              <input
+                type="text"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Поиск по названию, артикулу или производителю..."
+                className="w-full bg-secondary border border-border rounded-lg pl-8 pr-4 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary"
+              />
+            </div>
           </div>
 
-          <p className="text-xs text-muted-foreground mb-3">Найдено: {filtered.length} позиций</p>
+          <div className="flex items-center justify-between mb-3">
+            <p className="text-xs text-muted-foreground">Найдено: {filtered.length} позиций</p>
+            {compareSet.size > 0 && (
+              <p className="text-xs text-primary">
+                Выбрано для сравнения: {compareSet.size}/4
+                <button onClick={() => setCompareSet(new Set())} className="ml-2 text-muted-foreground hover:text-foreground">
+                  <Icon name="X" size={11} />
+                </button>
+              </p>
+            )}
+          </div>
 
           <div className="space-y-2">
             {filtered.map((part) => {
               const shopsOpen = expandedShops.has(part.art);
               const cheapest = minShopPrice(part);
+              const inCompare = compareSet.has(part.art);
+              const compareDisabled = !inCompare && compareSet.size >= 4;
               return (
                 <div
                   key={part.art}
-                  className="bg-card border border-border rounded-xl overflow-hidden hover:border-primary/40 transition-all group"
+                  className={`bg-card border rounded-xl overflow-hidden transition-all group ${
+                    inCompare ? 'border-primary/60' : 'border-border hover:border-primary/40'
+                  }`}
                 >
                   <div className="p-4 flex items-center gap-4">
-                    <div className="w-12 h-12 bg-secondary rounded-lg flex items-center justify-center flex-shrink-0">
-                      <Icon name="Package" size={20} className="text-muted-foreground group-hover:text-primary transition-colors" />
+                    {/* Compare checkbox */}
+                    <button
+                      onClick={() => toggleCompare(part.art)}
+                      disabled={compareDisabled}
+                      title={compareDisabled ? 'Максимум 4 товара' : inCompare ? 'Убрать из сравнения' : 'Добавить к сравнению'}
+                      className={`w-5 h-5 rounded border-2 flex items-center justify-center flex-shrink-0 transition-all ${
+                        inCompare
+                          ? 'bg-primary border-primary text-primary-foreground'
+                          : compareDisabled
+                          ? 'border-border opacity-30 cursor-not-allowed'
+                          : 'border-border hover:border-primary'
+                      }`}
+                    >
+                      {inCompare && <Icon name="Check" size={11} />}
+                    </button>
+
+                    <div className="w-10 h-10 bg-secondary rounded-lg flex items-center justify-center flex-shrink-0">
+                      <Icon name="Package" size={18} className="text-muted-foreground group-hover:text-primary transition-colors" />
                     </div>
                     <div className="flex-1 min-w-0">
                       <p className="font-semibold text-foreground text-sm">{part.name}</p>
@@ -643,9 +716,7 @@ export default function CatalogPage() {
                       <button
                         onClick={() => toggleShops(part.art)}
                         className={`p-2.5 rounded-lg transition-all ${
-                          shopsOpen
-                            ? 'bg-secondary text-foreground'
-                            : 'bg-secondary text-muted-foreground hover:text-foreground'
+                          shopsOpen ? 'bg-secondary text-foreground' : 'bg-secondary text-muted-foreground hover:text-foreground'
                         }`}
                         title="Магазины"
                       >
@@ -654,7 +725,6 @@ export default function CatalogPage() {
                     </div>
                   </div>
 
-                  {/* Shops panel */}
                   {shopsOpen && (
                     <div className="border-t border-border bg-background/50 px-4 py-3 animate-fade-in">
                       <p className="text-[11px] uppercase tracking-widest text-muted-foreground font-display mb-2">Купить в магазине</p>
@@ -669,9 +739,7 @@ export default function CatalogPage() {
                           >
                             <Icon name="ExternalLink" size={12} />
                             {shop.name}
-                            {shop.price && (
-                              <span className="font-bold">{shop.price.toLocaleString('ru')} ₽</span>
-                            )}
+                            {shop.price && <span className="font-bold">{shop.price.toLocaleString('ru')} ₽</span>}
                           </a>
                         ))}
                         <a
@@ -700,6 +768,133 @@ export default function CatalogPage() {
           </div>
         </div>
       </div>
+
+      {/* Compare modal */}
+      {showCompare && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm animate-fade-in">
+          <div className="bg-card border border-border rounded-2xl w-full max-w-4xl max-h-[85vh] overflow-auto animate-scale-in">
+            <div className="flex items-center justify-between p-5 border-b border-border sticky top-0 bg-card z-10">
+              <div>
+                <h2 className="font-display text-xl font-bold text-foreground">Сравнение цен</h2>
+                <p className="text-xs text-muted-foreground mt-0.5">{compareParts.length} товара · {ALL_SHOPS.length} магазина</p>
+              </div>
+              <button
+                onClick={() => setShowCompare(false)}
+                className="p-2 rounded-lg text-muted-foreground hover:text-foreground hover:bg-secondary transition-all"
+              >
+                <Icon name="X" size={20} />
+              </button>
+            </div>
+
+            <div className="p-5 overflow-x-auto">
+              <table className="w-full border-collapse">
+                <thead>
+                  <tr>
+                    <th className="text-left text-xs text-muted-foreground font-display uppercase tracking-wider pb-4 pr-4 w-48">Товар</th>
+                    {ALL_SHOPS.map((shop) => (
+                      <th key={shop} className="text-center pb-4 px-3">
+                        <span className={`text-xs font-bold px-2 py-1 rounded-md border ${shopColors[shop]}`}>{shop}</span>
+                      </th>
+                    ))}
+                    <th className="text-center pb-4 px-3">
+                      <span className="text-xs font-bold px-2 py-1 rounded-md border border-border bg-secondary text-muted-foreground">Лучшая цена</span>
+                    </th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {compareParts.map((part, idx) => {
+                    const bestShop = getBestShopForPart(part);
+                    const bestPrice = minShopPrice(part);
+                    return (
+                      <tr key={part.art} className={idx < compareParts.length - 1 ? 'border-b border-border' : ''}>
+                        <td className="py-4 pr-4">
+                          <p className="font-semibold text-foreground text-sm leading-tight">{part.name}</p>
+                          <p className="text-xs text-muted-foreground font-mono mt-0.5">{part.art}</p>
+                          <p className="text-xs text-muted-foreground">{part.manufacturer}</p>
+                        </td>
+                        {ALL_SHOPS.map((shopName) => {
+                          const shopEntry = part.shops.find((s) => s.name === shopName);
+                          const price = shopEntry?.price;
+                          const isBest = shopName === bestShop;
+                          return (
+                            <td key={shopName} className="text-center px-3 py-4">
+                              {shopEntry ? (
+                                <a
+                                  href={shopEntry.url}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className={`inline-flex flex-col items-center gap-1 px-3 py-2 rounded-lg border transition-all ${
+                                    isBest
+                                      ? 'border-green-500/50 bg-green-500/10 text-green-400 hover:bg-green-500/20'
+                                      : 'border-border bg-secondary text-foreground hover:border-primary/40'
+                                  }`}
+                                >
+                                  {isBest && <span className="text-[10px] font-bold uppercase tracking-wider text-green-400">Дешевле</span>}
+                                  <span className="font-bold text-sm">{price?.toLocaleString('ru')} ₽</span>
+                                  <span className="text-[10px] text-muted-foreground flex items-center gap-0.5">
+                                    <Icon name="ExternalLink" size={9} /> Купить
+                                  </span>
+                                </a>
+                              ) : (
+                                <span className="text-xs text-muted-foreground">—</span>
+                              )}
+                            </td>
+                          );
+                        })}
+                        <td className="text-center px-3 py-4">
+                          <div className="inline-flex flex-col items-center gap-0.5 px-3 py-2 rounded-lg border border-primary/40 bg-primary/10">
+                            <span className="text-xs text-muted-foreground">{bestShop}</span>
+                            <span className="font-bold text-primary">{bestPrice.toLocaleString('ru')} ₽</span>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+                {compareParts.length > 1 && (
+                  <tfoot>
+                    <tr className="border-t-2 border-primary/30">
+                      <td className="pt-4 pr-4">
+                        <p className="text-xs font-bold text-foreground font-display uppercase tracking-wider">Итого (все товары)</p>
+                      </td>
+                      {ALL_SHOPS.map((shopName) => {
+                        const total = compareParts.reduce((sum, part) => {
+                          const shop = part.shops.find((s) => s.name === shopName);
+                          return sum + (shop?.price ?? 0);
+                        }, 0);
+                        const hasAll = compareParts.every((p) => p.shops.some((s) => s.name === shopName));
+                        return (
+                          <td key={shopName} className="text-center px-3 pt-4">
+                            {hasAll ? (
+                              <span className="font-bold text-foreground">{total.toLocaleString('ru')} ₽</span>
+                            ) : (
+                              <span className="text-xs text-muted-foreground">неполный</span>
+                            )}
+                          </td>
+                        );
+                      })}
+                      <td className="text-center px-3 pt-4">
+                        <span className="font-bold text-primary">
+                          {compareParts.reduce((sum, p) => sum + minShopPrice(p), 0).toLocaleString('ru')} ₽
+                        </span>
+                      </td>
+                    </tr>
+                  </tfoot>
+                )}
+              </table>
+            </div>
+
+            <div className="px-5 pb-5">
+              <button
+                onClick={() => { setShowCompare(false); setCompareSet(new Set()); }}
+                className="text-xs text-muted-foreground hover:text-foreground transition-colors"
+              >
+                Закрыть и сбросить выбор
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
